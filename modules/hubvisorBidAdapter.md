@@ -48,7 +48,7 @@ var adUnits = [
           video: {
             maxWidth: 602,
             targetRatio: 1.77,
-            selector: '#div-prebid-video',
+            selector: "#div-prebid-video",
           },
         },
       },
@@ -57,11 +57,9 @@ var adUnits = [
 ];
 ```
 
-Parameters can be optionally passed under the `bid.params.video` object in order to configure the video player's behavior.
-
-The following parameters can be used:
-| Parameter     | Required | Type                  | Example  | Description                                                                   |
-|---------------|----------|-----------------------|----------|-------------------------------------------------------------------------------|
-| `maxWidth`    | No       | `number`              | `602`    | The player's maximum width                                                    |
-| `targetRatio` | No       | `number`              | `1.77`   | The player's target aspect ratio                                              |
-| `selector`    | No       | `string` or `Element` | `"#div"` | A selector or an HTML element into which the video player should be injected. |
+You can set the following optional parameters under `bid.params.video` to configure the video player's behavior:
+| Parameter     | Type                  | Example  | Description                                                                   |
+|---------------|-----------------------|----------|-------------------------------------------------------------------------------|
+| `maxWidth`    | `number`              | `602`    | The player's maximum width                                                    |
+| `targetRatio` | `number`              | `1.77`   | The player's target aspect ratio                                              |
+| `selector`    | `string` or `Element` | `"#div"` | A selector or an HTML element into which the video player should be injected. |

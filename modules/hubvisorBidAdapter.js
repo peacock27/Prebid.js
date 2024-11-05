@@ -27,55 +27,16 @@ const SYNC_TYPES = {
   iframe: "iframe",
 };
 
-const videoParametersByBidId = {};
-
-function isTest() {
-  return config.getConfig(TEST_CONFIG_KEY) === true;
-}
-
-function getPlacementIdFromBidRequest(bidRequest) {
-  return bidRequest.params?.placementId;
-}
-
-const converter = ortbConverter({
-  context: {
-    netRevenue: true,
-    ttl: 30,
-  },
-  request(buildRequest, imps, bidderRequest, context) {
-    const request = buildRequest(imps, bidderRequest, context);
-
-    if (request.site) {
-      request.site.publisher = request.publisher;
-    }
-
-    delete request.publisher;
-
-    request.test = isTest() ? 1 : 0;
-
-    return request;
-  },
-  imp(buildImp, bidRequest, context) {
-    const imp = buildImp(bidRequest, context);
-
-    deepSetValue(
-      imp,
-      "ext.hubvisor.placementId",
-      getPlacementIdFromBidRequest(bidRequest)
-    );
-
-    return imp;
-  },
-});
-
 export const spec = {
   version: "0.0.1",
   code: BIDDER_CODE,
   gvlid: 1112,
   supportedMediaTypes: [BANNER, VIDEO],
-  isBidRequestValid(bid) {
+
+  isBidRequestValid(_bid) {
     return true;
   },
+
   buildRequests(bidRequests, bidderRequest) {
     const { gdprConsent = {} } = bidderRequest;
     const placementIds = bidRequests
@@ -86,11 +47,11 @@ export const spec = {
 
     const auctionRequest = converter.toORTB({ bidRequests, bidderRequest });
 
-    for (const bidRequest of bidRequests) {
-      if (bidRequest.mediaTypes.video) {
-        videoParametersByBidId[bidRequest.biidId] = bidRequest.params.video;
-      }
-    }
+    const bidRequestsById = bidRequests.reduce((acc, bidRequest) => {
+      acc[bidRequest.bidId] = bidRequest;
+
+      return acc;
+    }, {});
 
     // Sync request
 
@@ -113,28 +74,43 @@ export const spec = {
         method: "POST",
         url: AUCTION_ENDPOINT,
         data: auctionRequest,
+        internal: {
+          bidRequestsById,
+        },
       },
     ];
   },
+
   interpretResponse(response, request) {
+    const { bidRequestsById } = request.internal ?? {};
+
+    if (!bidRequestsById) {
+      return [];
+    }
+
     const bids = converter.fromORTB({
       response: response.body,
       request: request.data,
     }).bids;
 
     for (const bid of bids) {
+      const bidRequest = bidRequestsById[bid.requestId];
+
       if (bid.mediaType === "video") {
-        const videoParameters = videoParametersByBidId[bid.bidId];
+        const video = bidRequest?.mediaTypes.video;
 
-        delete videoParametersByBidId[bid.biidId];
+        if (video?.context === "outstream") {
+          const videoParameters = bidRequest.params.video;
 
-        bid.renderer = makeOutstreamRenderer(bid, videoParameters);
+          bid.renderer = makeOutstreamRenderer(bid, videoParameters);
+        }
       }
     }
 
     return bids;
   },
-  getUserSyncs(syncOptions, serverResponses) {
+
+  getUserSyncs(_syncOptions, serverResponses) {
     if (serverResponses.length !== 2) {
       return;
     }
@@ -155,15 +131,59 @@ export const spec = {
 
 registerBidder(spec);
 
+const converter = ortbConverter({
+  context: {
+    netRevenue: true,
+    ttl: 30,
+  },
+
+  request(buildRequest, imps, bidderRequest, context) {
+    const request = buildRequest(imps, bidderRequest, context);
+
+    if (request.site) {
+      request.site.publisher = request.publisher;
+    }
+
+    delete request.publisher;
+
+    request.test = isTest() ? 1 : 0;
+
+    return request;
+  },
+
+  imp(buildImp, bidRequest, context) {
+    const imp = buildImp(bidRequest, context);
+
+    deepSetValue(
+      imp,
+      "ext.hubvisor.placementId",
+      getPlacementIdFromBidRequest(bidRequest)
+    );
+
+    return imp;
+  },
+});
+
+function isTest() {
+  return config.getConfig(TEST_CONFIG_KEY) === true;
+}
+
+function getPlacementIdFromBidRequest(bidRequest) {
+  return bidRequest.params?.placementId;
+}
+
 function makeOutstreamRenderer(bid, videoParameters = {}) {
+  const { id } = bid;
+  const { maxWidth, targetRatio, selector } = videoParameters;
+
   const renderer = Renderer.install({
-    id: bid.id,
+    id,
     url: HUBVISOR_PLAYER_URL,
     loaded: false,
     config: {
-      maxWidth: videoParameters.maxWidth,
-      targetRatio: videoParameters.targetRatio,
-      selector: videoParameters.selector,
+      maxWidth,
+      targetRatio,
+      selector,
     },
   });
 
@@ -176,13 +196,16 @@ function render(bid) {
   const config = bid.renderer.getConfig();
 
   bid.renderer.push(() => {
+    const { vastXml, vastUrl, width: targetWidth, height: targetHeight } = bid;
+    const { maxWidth, targetRatio } = config;
+
     playOutstream(getSelector(config, bid), {
-      vastXml: bid.vastXml,
-      vastUrl: bid.vastUrl,
-      targetWidth: bid.width,
-      targetHeight: bid.height,
-      maxWidth: config.maxWidth,
-      targetRatio: config.targetRatio,
+      vastXml,
+      vastUrl,
+      targetWidth,
+      targetHeight,
+      maxWidth,
+      targetRatio,
       expand: "no-lazy-load",
       onEvent: (event) => {
         switch (event) {
