@@ -12,6 +12,31 @@
 
 Module that connects to Hubvisor demand sources and supports the following media types: `banner`, `video`.
 
+## Configuring the outstream video player
+
+You can set the following optional parameters under `bid.params.video` to configure the video player's behavior:
+| Parameter     | Type                  | Example  | Description                                                                   |
+|---------------|-----------------------|----------|-------------------------------------------------------------------------------|
+| `maxWidth`    | `number`              | `602`    | The player's maximum width                                                    |
+| `targetRatio` | `number`              | `1.77`   | The player's target aspect ratio                                              |
+| `selector`    | `string` or `Element` | `"#div"` | A selector or an HTML element into which the video player should be injected. |
+
+## Enabling test mode
+
+You can enable test mode by calling the `pbjs.setBidderConfig` function as follows:
+
+```js
+pbjs.setBidderConfig({
+  bidders: ["hubvisor"],
+  config: {
+    // Enables test mode
+    test: true,
+  },
+});
+```
+
+When test mode is enabled, Hubvisor's server will return test bids that can be used to test the adapter's integration.
+
 ## Test Parameters
 
 ```javascript
@@ -56,10 +81,3 @@ var adUnits = [
   },
 ];
 ```
-
-You can set the following optional parameters under `bid.params.video` to configure the video player's behavior:
-| Parameter     | Type                  | Example  | Description                                                                   |
-|---------------|-----------------------|----------|-------------------------------------------------------------------------------|
-| `maxWidth`    | `number`              | `602`    | The player's maximum width                                                    |
-| `targetRatio` | `number`              | `1.77`   | The player's target aspect ratio                                              |
-| `selector`    | `string` or `Element` | `"#div"` | A selector or an HTML element into which the video player should be injected. |
